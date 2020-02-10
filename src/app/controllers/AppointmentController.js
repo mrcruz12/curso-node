@@ -1,37 +1,38 @@
 import * as Yup from 'yup';
+import { startOfHour, parseISO, isBefore } from 'date-fns';
 import User from '../models/User';
 import File from '../models/File';
 import Appointment from '../models/Appointment';
-import { startOfHour, parseISO, isBefore } from 'date-fns';
 
 class AppointmentController {
-  async index(req, res){
-    const { page = 1} = req.query;
+  async index(req, res) {
+    const { page = 1 } = req.query;
 
     const appointments = await Appointment.findAll({
       where: { user_id: req.userId, canceled_at: null },
-      order:['date'],
+      order: ['date'],
       attributes: ['id', 'date'],
       limit: 20,
       offset: (page - 1) * 20,
       include: [
         {
           model: User,
-          as:'provider',
+          as: 'provider',
           attributes: ['id', 'name'],
-          include: [ 
+          include: [
             {
               model: File,
               as: 'avatar',
-              attributes: ['id','path', 'url']
-            }
-          ]
-        }
-      ]
+              attributes: ['id', 'path', 'url'],
+            },
+          ],
+        },
+      ],
     });
 
-    return res.json(appointments)
+    return res.json(appointments);
   }
+
   async store(req, res) {
     const schema = Yup.object().shape({
       provider_id: Yup.number().required(),
@@ -51,8 +52,8 @@ class AppointmentController {
         .json({ error: 'You can only create appointments with providers' });
     }
     const hourStart = startOfHour(parseISO(date));
-    if(isBefore(hourStart, new Date())){
-      return res.status(400).json({ error: 'Past dates are not permited'})
+    if (isBefore(hourStart, new Date())) {
+      return res.status(400).json({ error: 'Past dates are not permited' });
     }
 
     const checkAvailablity = await Appointment.findOne({
@@ -60,10 +61,10 @@ class AppointmentController {
         provider_id,
         canceled_at: null,
         date: hourStart,
-      }
-    })
-    if(checkAvailablity){
-      return res.status(400).json({ error: 'Appointment date is not available'})
+      },
+    });
+    if (checkAvailablity) {
+      return res.status(400).json({ error: 'Appointment date is not available' });
     }
     const appointment = await Appointment.create({
       user_id: req.userId,
