@@ -8,7 +8,8 @@ import File from '../models/File';
 import Appointment from '../models/Appointment';
 import Nofitication from '../schemas/Notification';
 
-import Mail from '../../lib/Mail';
+import CancellationMail from '../jobs/CancellationMail';
+import Queue from '../../lib/Queue';
 
 class AppointmentController {
   async index(req, res) {
@@ -94,6 +95,7 @@ class AppointmentController {
       content: `Novo agendamento de ${user.name} para ${formatDate}.`,
       user: provider_id,
     });
+
     return res.json(appointment);
   }
 
@@ -105,9 +107,14 @@ class AppointmentController {
           as: 'provider',
           attributes: ['name', 'email'],
         },
+        {
+          model: User,
+          as: 'user',
+          attributes: ['name', 'id'],
+        },
       ],
     });
-    if (appointment.user_id !== req.userId) {
+    if (appointment.user.id !== req.userId) {
       return res.status(401).json({
         error: "You don't have permission to cancel this appointment. ",
       });
@@ -120,11 +127,11 @@ class AppointmentController {
     }
     appointment.canceled_at = new Date();
     await appointment.save();
-    await Mail.sendMail({
-      to: `${appointment.provider.name} <${appointment.provider.email}>`,
-      subject: 'Agendamento Cancelado',
-      text: 'Você tem um novo cancelamento',
+
+    await Queue.add(CancellationMail.key, {
+      appointment,
     });
+
     return res.json(appointment);
   }
 }
